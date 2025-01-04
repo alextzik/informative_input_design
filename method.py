@@ -27,10 +27,10 @@ def compute_map_estimate(theta_est: np.ndarray,
                                     Sigma_obs)
                                for (x, y) in zip(xs, ys)]
     
-    constraints = [cp.norm(theta-theta_est, "inf") <= delta]
+    constraints = [cp.norm(theta-theta_est, "inf") <= delta*np.linalg.norm(theta_est)]
 
     prob = cp.Problem(cp.Minimize(sum(prior_objective+observation_objectives)), constraints)
-    prob.solve()
+    prob.solve(solver=cp.SCS)
 
     return theta.value
 
@@ -39,7 +39,7 @@ def compute_map_estimate(theta_est: np.ndarray,
 def compute_next_input(theta_est: np.ndarray,
                        Sigma_prior: np.ndarray,
                        xs: list[np.ndarray],
-                       Sigma_obs: np.ndarray) -> np.ndarray:
+                       Sigma_obs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     
     # Convert numpy arrays to torch tensors of type float32
     theta_est = torch.tensor(theta_est, dtype=torch.float32, requires_grad=True)  # Ensure theta_est has requires_grad=True
@@ -51,7 +51,7 @@ def compute_next_input(theta_est: np.ndarray,
     
     # Compute the sum over xs for the constant part
     sum_term = sum(
-        model_derivative_matrix_tensor(_x, theta_est).T @ inv_Sigma_obs @ model_derivative_matrix_tensor(_x, theta_est)
+        model_derivative_matrix_tensor(torch.tensor(_x, dtype=torch.float32), theta_est).T @ inv_Sigma_obs @ model_derivative_matrix_tensor(torch.tensor(_x, dtype=torch.float32), theta_est)
         for _x in xs
     )
     
@@ -83,8 +83,10 @@ def compute_next_input(theta_est: np.ndarray,
         
         # Print progress
     print(f"Iteration {iteration}, Loss: {loss.item()}, x: {x.detach().numpy()}")
-
-    return x.detach().numpy()
+    Sigma_post = np.linalg.inv(
+        (const + model_derivative_matrix_tensor(x, theta_est).T @ inv_Sigma_obs @ model_derivative_matrix_tensor(x, theta_est)).detach().numpy()
+    )
+    return x.detach().numpy(), Sigma_post
 
 
 

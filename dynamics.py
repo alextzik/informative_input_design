@@ -37,15 +37,15 @@ def model(x:np.ndarray, theta:np.ndarray) -> np.ndarray:
 def model_derivative_matrix(x: np.ndarray, theta:np.ndarray) -> np.ndarray:
     C = np.array([
         [-x[0]**2, 0],
-        [0, x[1]]
+        [0, x[0]]
     ])
 
     return C
 
 def model_derivative_matrix_tensor(x: torch.Tensor, theta:torch.Tensor) -> torch.Tensor:
     # Ensure that the operations on x and theta are differentiable and tracked by autograd
-    c_00 = -x[0]**2 * theta[0]  # This is differentiable
-    c_11 = x[1] * theta[1]      # This is also differentiable
+    c_00 = -x[0]**2
+    c_11 = x[0] 
 
     # Create the matrix directly using the values computed from x and theta
     C = torch.stack([torch.cat([c_00.unsqueeze(0), torch.tensor([0.0])]),
