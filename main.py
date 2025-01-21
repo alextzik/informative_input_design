@@ -55,11 +55,11 @@ def run_proposed_method(theta_prior: np.ndarray,
         for _ in range(len(ys)):
             delta_ys += [(model(xs[_], theta_est) - ys[_]).reshape(-1,1)]
         Sigmas_obs = [0.8*1/len(delta_ys) * np.sum([_y @ _y.T for _y in delta_ys], axis=0) + 0.2*Sigma_obs 
-                        for _ in range(len(xs))]
+                        for _ in range(len(xs)+1)]
             # yss[_] += [(model(xs[_], theta_est) - ys[_]).reshape(-1,1)]
             # Sigmas_obs[_] = 0.8*1/len(yss[_]) * np.sum([_y @ _y.T for _y in yss[_]], axis=0) + 0.2*Sigma_obs
 
-        Sigmas_obs += [Sigma_obs]
+        # Sigmas_obs += [Sigma_obs]
         x_next, Sigma_post = compute_next_input(theta_est=theta_est,
                                     Sigma_prior=Sigma_prior,
                                     xs=xs,
