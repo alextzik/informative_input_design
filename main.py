@@ -9,7 +9,7 @@ import random
 
 import matplotlib.pyplot as plt
 
-from dynamics import true_dynamics, a, b, model
+from dynamics import true_dynamics, A, model
 from method import compute_map_estimate, compute_next_input
 from helper_funcs import plot_confidence_ellipse, compute_log_det_Sigma
 
@@ -18,8 +18,8 @@ plt.rcParams['font.size'] = 15
 
 ###############################
 # Parameters
-theta_prior = np.array([3., 1.])
-Sigma_prior = 0.1*np.eye(2)
+theta_prior = np.array([7., 4., 3., 2.])
+Sigma_prior = 0.1*np.eye(4)
 
 xs = [np.array([1., 1.])]
 ys = [true_dynamics(x) for x in xs]
@@ -39,7 +39,7 @@ def run_proposed_method(theta_prior: np.ndarray,
                         Sigma_obs: np.ndarray) -> list[float]:
     
     theta_est = theta_prior.copy()
-    dists = [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
+    dists = [np.linalg.norm(theta_est.reshape(2,2) - A, ord=np.inf)]
     Sigmas_obs = [Sigma_obs for _x in range(len(xs))]
 
     ax = plot_confidence_ellipse(theta_est, Sigma_prior)
@@ -73,7 +73,7 @@ def run_proposed_method(theta_prior: np.ndarray,
 
         ax = plot_confidence_ellipse(theta_est, Sigma_post, ax)
 
-        dists += [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
+        dists += [np.linalg.norm(theta_est.reshape(2,2) - A, ord=np.inf)]
     
     ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
     ax.grid(True)
@@ -95,7 +95,7 @@ def run_proposed_method_no_Sigma_update(theta_prior: np.ndarray,
                         Sigma_obs: np.ndarray) -> list[float]:
     
     theta_est = theta_prior.copy()
-    dists = [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
+    dists = [np.linalg.norm(theta_est.reshape(2,2) - A, ord=np.inf)]
 
     for timestep in range(num_timesteps):
         print(timestep)
@@ -118,7 +118,7 @@ def run_proposed_method_no_Sigma_update(theta_prior: np.ndarray,
         xs = xs + [x_next]
         ys = ys + [true_dynamics(x_next)]
 
-        dists += [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
+        dists += [np.linalg.norm(theta_est.reshape(2,2) - A, ord=np.inf)]
 
     logdet = compute_log_det_Sigma(theta_est=theta_est,
                                    Sigma_prior=Sigma_prior,
@@ -153,7 +153,7 @@ def run_random_selection(theta_prior: np.ndarray,
         xs = xs + [x_next]
         ys = ys + [true_dynamics(x_next)]
 
-        dists += [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
+        dists += [np.linalg.norm(theta_est.reshape(2,2) - A, ord=np.inf)]
 
     logdet = compute_log_det_Sigma(theta_est=theta_est,
                                    Sigma_prior=Sigma_prior,
@@ -187,7 +187,7 @@ def run_prbs(theta_prior: np.ndarray,
         xs = xs + [x_next]
         ys = ys + [true_dynamics(x_next)]
 
-        dists += [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
+        dists += [np.linalg.norm(theta_est.reshape(2,2) - A, ord=np.inf)]
 
     logdet = compute_log_det_Sigma(theta_est=theta_est,
                                    Sigma_prior=Sigma_prior,
@@ -225,7 +225,7 @@ def run_multisine(theta_prior: np.ndarray,
         xs = xs + [x_next]
         ys = ys + [true_dynamics(x_next)]
 
-        dists += [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
+        dists += [np.linalg.norm(theta_est.reshape(2,2) - A, ord=np.inf)]
 
     logdet = compute_log_det_Sigma(theta_est=theta_est,
                                    Sigma_prior=Sigma_prior,
