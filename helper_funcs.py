@@ -9,6 +9,7 @@ import numpy as np
 
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
+from dynamics import model_derivative_matrix
 
 def plot_confidence_ellipse(mean, cov, ax=None, n_std=3.0, facecolor='none', **kwargs):
     """
@@ -63,6 +64,27 @@ def plot_confidence_ellipse(mean, cov, ax=None, n_std=3.0, facecolor='none', **k
     ax.scatter(mean[0], mean[1], color='red', marker='x', label="Mean", zorder=5)
 
     return ax
+
+def compute_log_det_Sigma(  theta_est: np.ndarray,
+                            Sigma_prior: np.ndarray,
+                            xs: list[np.ndarray],
+                            Sigmas_obs: list[np.ndarray]) -> float:
+
+    inv_Sigmas_obs = [np.linalg.inv(Sigma_obs) for Sigma_obs in Sigmas_obs]
+        
+    # Compute the sum over xs for the constant part
+    sum_term = np.sum(
+        [model_derivative_matrix(x, theta_est).T 
+         @ inv_Sigma_obs 
+         @ model_derivative_matrix(x, theta_est) for (x, inv_Sigma_obs) in zip(xs, inv_Sigmas_obs) ],
+         axis=0
+        )
+
+    # Constant part: inverse of Sigma_prior + sum_term
+    Sigma_post_inv = np.linalg.inv(Sigma_prior) + sum_term
+
+    return np.linalg.slogdet(np.linalg.inv(Sigma_post_inv))[1]
+
 
 # def plot_confidence_ellipse(mean, covariance, ax=None, confidence_level=0.95):
     """
