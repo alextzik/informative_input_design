@@ -27,7 +27,7 @@ ys = [true_dynamics(x, u) for (x, u) in zip(xs, us)]
 
 Sigma_obs = 10*np.eye(3)
 
-num_timesteps = 3
+num_timesteps = 1000
 NUMBER_OF_SINS = 30
 MAX_AMPL = 1.
 
