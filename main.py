@@ -18,7 +18,7 @@ plt.rcParams['font.size'] = 15
 
 ###############################
 # Parameters
-theta_prior = np.array([3., 1.])
+theta_prior = np.array([7., 4.])
 Sigma_prior = 0.1*np.eye(2)
 
 xs = [np.array([1., 1.])]
@@ -26,9 +26,9 @@ ys = [true_dynamics(x) for x in xs]
 
 Sigma_obs = 10*np.eye(2)
 
-num_timesteps = 50
+num_timesteps = 20
 NUMBER_OF_SINS = 30
-MAX_AMPL = 7.
+MAX_AMPL = 10000.
 
 ###############################
 # Methods
@@ -236,33 +236,18 @@ def run_multisine(theta_prior: np.ndarray,
 
 ###############################
 # Main loop
-methods = ["proposed", "random", "PRBS", "multisine"]
+methods = ["proposed", "proposed (no finetuning)"]
 results = {_: {} for _ in methods}
 results["proposed"]["dists"], results["proposed"]["xs"], results["proposed"]["logdet"] = run_proposed_method(theta_prior=theta_prior,
                                                                     Sigma_prior=Sigma_prior,
                                                                     xs=xs,
                                                                     ys=ys,
                                                                     Sigma_obs=Sigma_obs)
-# dists_proposed_no_Sigma_update = run_proposed_method_no_Sigma_update(theta_prior=theta_prior,
-#                                         Sigma_prior=Sigma_prior,
-#                                         xs=xs,
-#                                         ys=ys,
-#                                         Sigma_obs=Sigma_obs)
-results["random"]["dists"], results["random"]["xs"], results["random"]["logdet"] = run_random_selection(theta_prior=theta_prior,
-                                                                    Sigma_prior=Sigma_prior,
-                                                                    xs=xs,
-                                                                    ys=ys,
-                                                                    Sigma_obs=Sigma_obs)
-results["PRBS"]["dists"], results["PRBS"]["xs"], results["PRBS"]["logdet"] = run_prbs(theta_prior=theta_prior,
-                                                                    Sigma_prior=Sigma_prior,
-                                                                    xs=xs,
-                                                                    ys=ys,
-                                                                    Sigma_obs=Sigma_obs)
-results["multisine"]["dists"], results["multisine"]["xs"], results["multisine"]["logdet"] = run_multisine(theta_prior=theta_prior,
-                                                                    Sigma_prior=Sigma_prior,
-                                                                    xs=xs,
-                                                                    ys=ys,
-                                                                    Sigma_obs=Sigma_obs)
+results["proposed (no finetuning)"]["dists"], results["proposed (no finetuning)"]["xs"], results["proposed (no finetuning)"]["logdet"] = run_proposed_method_no_Sigma_update(theta_prior=theta_prior,
+                                        Sigma_prior=Sigma_prior,
+                                        xs=xs,
+                                        ys=ys,
+                                        Sigma_obs=Sigma_obs)
 
 # Plot error
 for _ in methods:
