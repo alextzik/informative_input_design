@@ -92,7 +92,7 @@ def run_proposed_method(theta_prior: np.ndarray,
                                    xs=xs,
                                    us=us,
                                    Sigmas_obs=[Sigma_obs for _x in range(len(xs))])
-    return dists, xs, logdet
+    return dists, us, logdet
 
 def run_random_selection(theta_prior: np.ndarray,
                         Sigma_prior: np.ndarray,
@@ -130,7 +130,7 @@ def run_random_selection(theta_prior: np.ndarray,
                                    us=us,
                                    Sigmas_obs=[Sigma_obs for _x in range(len(xs))])
 
-    return dists, xs, logdet
+    return dists, us, logdet
 
 def run_prbs(theta_prior: np.ndarray,
                         Sigma_prior: np.ndarray,
@@ -168,7 +168,7 @@ def run_prbs(theta_prior: np.ndarray,
                                    us=us,
                                    Sigmas_obs=[Sigma_obs for _x in range(len(xs))])
 
-    return dists, xs, logdet
+    return dists, us, logdet
 
 def run_multisine(theta_prior: np.ndarray,
                         Sigma_prior: np.ndarray,
@@ -210,31 +210,31 @@ def run_multisine(theta_prior: np.ndarray,
                                    us=us,
                                    Sigmas_obs=[Sigma_obs for _x in range(len(xs))])
 
-    return dists, xs, logdet
+    return dists, us, logdet
 
 ###############################
 # Main loop
 methods = ["proposed", "random", "PRBS", "multisine"]
 results = {_: {} for _ in methods}
-results["proposed"]["dists"], results["proposed"]["xs"], results["proposed"]["logdet"] = run_proposed_method(theta_prior=theta_prior,
+results["proposed"]["dists"], results["proposed"]["us"], results["proposed"]["logdet"] = run_proposed_method(theta_prior=theta_prior,
                                                                     Sigma_prior=Sigma_prior,
                                                                     xs=xs,
                                                                     ys=ys,
                                                                     us=us,
                                                                     Sigma_obs=Sigma_obs)
-results["random"]["dists"], results["random"]["xs"], results["random"]["logdet"] = run_random_selection(theta_prior=theta_prior,
+results["random"]["dists"], results["random"]["us"], results["random"]["logdet"] = run_random_selection(theta_prior=theta_prior,
                                                                     Sigma_prior=Sigma_prior,
                                                                     xs=xs,
                                                                     ys=ys,
                                                                     us=us,
                                                                     Sigma_obs=Sigma_obs)
-results["PRBS"]["dists"], results["PRBS"]["xs"], results["PRBS"]["logdet"] = run_prbs(theta_prior=theta_prior,
+results["PRBS"]["dists"], results["PRBS"]["us"], results["PRBS"]["logdet"] = run_prbs(theta_prior=theta_prior,
                                                                     Sigma_prior=Sigma_prior,
                                                                     xs=xs,
                                                                     ys=ys,
                                                                     us=us,
                                                                     Sigma_obs=Sigma_obs)
-results["multisine"]["dists"], results["multisine"]["xs"], results["multisine"]["logdet"] = run_multisine(theta_prior=theta_prior,
+results["multisine"]["dists"], results["multisine"]["us"], results["multisine"]["logdet"] = run_multisine(theta_prior=theta_prior,
                                                                     Sigma_prior=Sigma_prior,
                                                                     xs=xs,
                                                                     ys=ys,
@@ -255,7 +255,7 @@ fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(3, 4))
 
 # Plot on the first subplot
 for _ in methods:
-    xs = np.vstack(results[_]["xs"])
+    xs = np.vstack(results[_]["us"])
     axs[0].plot(range(len(xs[:, 0])), xs[:, 0], label=_)
     axs[1].plot(range(len(xs[:, 1])), xs[:, 1], label=_)
 axs[0].set_title('Input Coordinate 1')
