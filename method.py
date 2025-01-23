@@ -20,15 +20,16 @@ def compute_map_estimate(theta_est: np.ndarray,
                          Sigma_prior: np.ndarray,
                          ys: list[np.ndarray],
                          xs: list[np.ndarray],
+                         us: list[np.ndarray],
                          Sigmas_obs: list[np.ndarray],
                          delta=0.3) -> np.ndarray:
 
     theta = cp.Variable(theta_est.shape[0])
     prior_objective = [cp.matrix_frac(theta - theta_prior, Sigma_prior)]
     observation_objectives = [cp.matrix_frac(
-                                    y - model(x, theta_est) - model_derivative_matrix(x, theta_est)@(theta-theta_est), 
+                                    y - model(x, u, theta_est) - model_derivative_matrix(x, u, theta_est)@(theta-theta_est), 
                                     Sigma_obs)
-                               for (x, y, Sigma_obs) in zip(xs, ys, Sigmas_obs)]
+                               for (x, u, y, Sigma_obs) in zip(xs, us, ys, Sigmas_obs)]
     
     constraints = [cp.norm(theta-theta_est, "inf") <= delta*np.linalg.norm(theta_est)]
 
@@ -42,6 +43,8 @@ def compute_map_estimate(theta_est: np.ndarray,
 def compute_next_input(theta_est: np.ndarray,
                        Sigma_prior: np.ndarray,
                        xs: list[np.ndarray],
+                       us: list[np.ndarray],
+                       ys: list[np.ndarray],
                        Sigmas_obs: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
     
     # Convert numpy arrays to torch tensors of type float32
@@ -55,20 +58,25 @@ def compute_next_input(theta_est: np.ndarray,
     # Compute the sum over xs for the constant part
     sum_term = sum(
         model_derivative_matrix_tensor(
-            torch.tensor(_x, dtype=torch.float32), theta_est).T 
+            torch.tensor(_x, dtype=torch.float32), 
+            torch.tensor(_u, dtype=torch.float32),
+            theta_est).T 
         @ inv_Sigma_obs 
-        @ model_derivative_matrix_tensor(torch.tensor(_x, dtype=torch.float32), theta_est)
-        for (_x, inv_Sigma_obs) in zip(xs, inv_Sigmas_obs[:-1])
+        @ model_derivative_matrix_tensor(
+            torch.tensor(_x, dtype=torch.float32), 
+            torch.tensor(_u, dtype=torch.float32),
+            theta_est)
+        for (_x, _u, inv_Sigma_obs) in zip(xs, us, inv_Sigmas_obs[:-1])
     )
     
     # Constant part: inverse of Sigma_prior + sum_term
     const = torch.inverse(Sigma_prior) + sum_term
     
     # Initialize x as a torch tensor of type float32 with requires_grad=True
-    x = torch.tensor([1.0, 1.0], dtype=torch.float32, requires_grad=True)
+    u = torch.tensor([1.0, 1.0], dtype=torch.float32, requires_grad=True)
 
     # Optimizer (Gradient Descent)
-    optimizer = torch.optim.Adam([x], lr=0.1)  # Using Adam optimizer to maximize log_det
+    optimizer = torch.optim.Adam([u], lr=0.1)  # Using Adam optimizer to maximize log_det
 
     # Number of optimization iterations
     num_iterations = 1000
@@ -80,9 +88,15 @@ def compute_next_input(theta_est: np.ndarray,
         # Compute the log-det for the current x and theta
         loss = -torch.logdet(
             const + 
-            model_derivative_matrix_tensor(x, theta_est).T 
+            model_derivative_matrix_tensor(
+                torch.tensor(ys[-1], dtype=torch.float32), 
+                u, 
+                theta_est).T 
             @ inv_Sigmas_obs[-1] 
-            @ model_derivative_matrix_tensor(x, theta_est)
+            @ model_derivative_matrix_tensor(
+                torch.tensor(ys[-1], dtype=torch.float32),
+                u, 
+                theta_est)
         )  # We minimize the negative log-det to maximize it
         
         # Backpropagate gradients
@@ -91,11 +105,22 @@ def compute_next_input(theta_est: np.ndarray,
         optimizer.step()
         
         # Print progress
-    print(f"Iteration {iteration}, Loss: {loss.item()}, x: {x.detach().numpy()}")
+    print(f"Iteration {iteration}, Loss: {loss.item()}, x: {u.detach().numpy()}")
     Sigma_post = np.linalg.inv(
-        (const + model_derivative_matrix_tensor(x, theta_est).T @ inv_Sigmas_obs[-1] @ model_derivative_matrix_tensor(x, theta_est)).detach().numpy()
+        (
+            const + 
+         model_derivative_matrix_tensor(
+             torch.tensor(ys[-1], dtype=torch.float32),
+             u, 
+             theta_est).T 
+        @ inv_Sigmas_obs[-1] 
+        @ model_derivative_matrix_tensor(
+            torch.tensor(ys[-1], dtype=torch.float32),
+            u,
+            theta_est)
+        ).detach().numpy()
     )
-    return x.detach().numpy(), Sigma_post
+    return u.detach().numpy(), Sigma_post
 
 
 def fit_model(theta_prior: np.ndarray,

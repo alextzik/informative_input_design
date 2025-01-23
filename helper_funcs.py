@@ -68,15 +68,16 @@ def plot_confidence_ellipse(mean, cov, ax=None, n_std=3.0, facecolor='none', **k
 def compute_log_det_Sigma(  theta_est: np.ndarray,
                             Sigma_prior: np.ndarray,
                             xs: list[np.ndarray],
+                            us: list[np.ndarray],
                             Sigmas_obs: list[np.ndarray]) -> float:
 
     inv_Sigmas_obs = [np.linalg.inv(Sigma_obs) for Sigma_obs in Sigmas_obs]
         
     # Compute the sum over xs for the constant part
     sum_term = np.sum(
-        [model_derivative_matrix(x, theta_est).T 
+        [model_derivative_matrix(x, u, theta_est).T 
          @ inv_Sigma_obs 
-         @ model_derivative_matrix(x, theta_est) for (x, inv_Sigma_obs) in zip(xs, inv_Sigmas_obs) ],
+         @ model_derivative_matrix(x, u, theta_est) for (x, u, inv_Sigma_obs) in zip(xs, us, inv_Sigmas_obs) ],
          axis=0
         )
 
