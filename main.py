@@ -21,7 +21,7 @@ plt.rcParams['font.size'] = 15
 theta_prior = np.array([7., 4., 3., 2.])
 Sigma_prior = 0.1*np.eye(4)
 
-xs = [np.array([1., 1.])]
+xs = [np.array([1., 1.]), np.array([0.1, 0.7])]
 ys = [true_dynamics(x) for x in xs]
 
 Sigma_obs = 10*np.eye(2)
@@ -57,8 +57,70 @@ def run_proposed_method(theta_prior: np.ndarray,
         delta_ys = []
         for _ in range(len(ys)):
             delta_ys += [(model(xs[_], theta_est) - ys[_]).reshape(-1,1)]
+
         Sigmas_obs = [0.8*1/len(delta_ys) * np.sum([_y @ _y.T for _y in delta_ys], axis=0) + 0.2*Sigma_obs 
                         for _ in range(len(xs)+1)]
+
+        x_next, Sigma_post = compute_next_input(theta_est=theta_est,
+                                    Sigma_prior=Sigma_prior,
+                                    xs=xs,
+                                    Sigmas_obs=Sigmas_obs)
+        
+        if np.linalg.norm(x_next) >= MAX_AMPL:
+            x_next = x_next/np.linalg.norm(x_next)*MAX_AMPL
+        
+        xs = xs + [x_next]
+        ys = ys + [true_dynamics(x_next)]
+
+        ax = plot_confidence_ellipse(theta_est, Sigma_post, ax)
+
+        dists += [np.linalg.norm(theta_est.reshape(2,2) - A, ord=np.inf)]
+    
+    ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
+    ax.grid(True)
+    ax.set_xlabel(r'$\theta_1$')
+    ax.set_ylabel(r'$\theta_2$')
+    plt.show()
+
+    logdet = compute_log_det_Sigma(theta_est=theta_est,
+                                   Sigma_prior=Sigma_prior,
+                                   xs=xs,
+                                   Sigmas_obs=[Sigma_obs for _x in range(len(xs))])
+    return dists, xs, logdet
+
+
+def run_proposed_iterative_method(theta_prior: np.ndarray,
+                                    Sigma_prior: np.ndarray,
+                                    xs: list[np.ndarray],
+                                    ys: list[np.ndarray],
+                                    Sigma_obs: np.ndarray) -> list[float]:
+    
+    theta_est = theta_prior.copy()
+    dists = [np.linalg.norm(theta_est.reshape(2,2) - A, ord=np.inf)]
+    Sigmas_obs = [Sigma_obs for _x in range(len(xs))]
+
+    ax = plot_confidence_ellipse(theta_est, Sigma_prior)
+
+    for timestep in range(num_timesteps):
+        print(timestep)
+        for iters in range(20):
+            theta_est = compute_map_estimate(   theta_est=theta_est,
+                                                theta_prior=theta_prior,
+                                                Sigma_prior=Sigma_prior,
+                                                ys=ys,
+                                                xs=xs,
+                                                Sigmas_obs=Sigmas_obs,#Sigmas_obs,
+                                                )
+
+            delta_ys = []
+            for _ in range(len(ys)):
+                delta_ys += [(model(xs[_], theta_est) - ys[_]).reshape(-1,1)]
+
+            Sigmas_obs = [np.cov(np.array(delta_ys)[:, :, 0].T) +1e-3*np.eye(delta_ys[0].shape[0]) 
+                            for _ in range(len(xs))]
+        
+        Sigmas_obs = [np.cov(np.array(delta_ys)[:, :, 0].T) +1e-3*np.eye(delta_ys[0].shape[0]) 
+                            for _ in range(len(xs)+1)]
 
         x_next, Sigma_post = compute_next_input(theta_est=theta_est,
                                     Sigma_prior=Sigma_prior,
@@ -236,9 +298,15 @@ def run_multisine(theta_prior: np.ndarray,
 
 ###############################
 # Main loop
-methods = ["proposed", "random", "PRBS", "multisine"]
+methods = ["proposed", "proposed iter", "random", "PRBS", "multisine"]
 results = {_: {} for _ in methods}
 results["proposed"]["dists"], results["proposed"]["xs"], results["proposed"]["logdet"] = run_proposed_method(theta_prior=theta_prior,
+                                                                    Sigma_prior=Sigma_prior,
+                                                                    xs=xs,
+                                                                    ys=ys,
+                                                                    Sigma_obs=Sigma_obs)
+
+results["proposed iter"]["dists"], results["proposed iter"]["xs"], results["proposed iter"]["logdet"] = run_proposed_iterative_method(theta_prior=theta_prior,
                                                                     Sigma_prior=Sigma_prior,
                                                                     xs=xs,
                                                                     ys=ys,
