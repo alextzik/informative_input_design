@@ -21,7 +21,7 @@ def compute_map_estimate(theta_est: np.ndarray,
                          ys: list[np.ndarray],
                          xs: list[np.ndarray],
                          Sigmas_obs: list[np.ndarray],
-                         delta=0.3) -> np.ndarray:
+                         delta:float) -> np.ndarray:
 
     theta = cp.Variable(theta_est.shape[0])
     prior_objective = [cp.matrix_frac(theta - theta_prior, Sigma_prior)]
@@ -35,7 +35,10 @@ def compute_map_estimate(theta_est: np.ndarray,
     prob = cp.Problem(cp.Minimize(sum(prior_objective+observation_objectives)), constraints)
     prob.solve(solver=cp.SCS)
 
-    return theta.value
+    if theta.value is None:
+        return theta_est
+    else:
+        return theta.value
 
 ###############################
 # Informative Input Design
@@ -95,7 +98,7 @@ def compute_next_input(theta_est: np.ndarray,
     Sigma_post = np.linalg.inv(
         (const + model_derivative_matrix_tensor(x, theta_est).T @ inv_Sigmas_obs[-1] @ model_derivative_matrix_tensor(x, theta_est)).detach().numpy()
     )
-    return x.detach().numpy(), Sigma_post
+    return x.detach().numpy(), np.linalg.inv(const), Sigma_post
 
 
 def fit_model(theta_prior: np.ndarray,
