@@ -11,7 +11,7 @@ from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
 from dynamics_henon import model_derivative_matrix
 
-def plot_confidence_ellipse(mean, cov, ax=None, n_std=3.0, facecolor='none', **kwargs):
+def plot_confidence_ellipse(mean, cov, ax=None, n_std=.3, facecolor='none', **kwargs):
     """
     Create a plot of the covariance confidence ellipse of *x* and *y*.
 

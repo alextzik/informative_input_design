@@ -26,8 +26,8 @@ xs = [np.array([1., 1.]), np.array([1.1, 1.2]), np.array([1.15, 1.2])]
 ys = [true_dynamics(x) for x in xs]
 
 # Sigma = 0.2*np.eye(2)
-# Sigmas = [(a/10)*np.eye(2) for a in range(40, 140, 10)]
-Sigmas = [0.2*np.eye(2)]
+Sigmas = [(a/10)*np.eye(2) for a in range(40, 140, 10)]
+Sigmas += [0.2*np.eye(2)]
 # for i in range(5):
 #     A = np.random.randn(2,2)
 #     Sigmas += [A.T@A + 0.01*np.eye(2)]
@@ -51,9 +51,10 @@ def run_method(theta_prior: np.ndarray,
     
     theta_prev = theta_prior.copy()
     dists = [np.linalg.norm(theta_prev - np.array([a, b]), ord=np.inf)]
+    logdets = []
     Sigmas_obs = [Sigma for _x in range(len(xs))]
 
-    ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
+    # ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
 
     for timestep in range(num_timesteps):
         print(timestep)
@@ -78,7 +79,7 @@ def run_method(theta_prior: np.ndarray,
                         for (_x, S) in zip(xs, Sigmas_obs)])
                 )
 
-                ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
+                # ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
                 
                 # Obtain model errors
                 model_errors = []
@@ -108,6 +109,7 @@ def run_method(theta_prior: np.ndarray,
 
                     theta_prev = theta_next.copy()
 
+            logdets += [np.linalg.slogdet(Sigma_model_errors)[1]]
         else:
             Sigmas_obs = [Sigma for _x in range(len(xs))]
             theta_next = compute_map_estimate(  theta_est=theta_prev,
@@ -127,7 +129,7 @@ def run_method(theta_prior: np.ndarray,
                         for (_x, S) in zip(xs, Sigmas_obs)])
                 )
 
-            ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
+            # ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
 
             theta_prev = theta_next.copy()
 
@@ -151,23 +153,23 @@ def run_method(theta_prior: np.ndarray,
 
         dists += [np.linalg.norm(theta_next - np.array([a, b]), ord=np.inf)]
     
-    ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
-    ax.grid(True)
-    ax.set_xlabel(r'$\theta_1$')
-    ax.set_ylabel(r'$\theta_2$')
-    plt.show()
+    # ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
+    # ax.grid(True)
+    # ax.set_xlabel(r'$\theta_1$')
+    # ax.set_ylabel(r'$\theta_2$')
+    # plt.show()
 
-    return dists, xs, logdet
+    return dists, xs, logdets
 
 
 ###############################
 # Main loop
-methods = ["proposed", "baseline"] 
+methods = ["proposed"]
 results = {_: {} for _ in methods}
 for _m in methods:
     results[_m]["dists"] = []
     results[_m]["xs"] = []
-    results[_m]["logdet"] = []
+    results[_m]["logdets"] = []
     for Sigma in Sigmas:
         r1, r2, r3 = run_method(theta_prior=theta_prior,
                                 Sigma_prior=Sigma_prior,
@@ -177,45 +179,18 @@ for _m in methods:
                                 method=_m)
         results[_m]["dists"] += [r1]
         results[_m]["xs"] += [r2]
-        results[_m]["logdet"] += [r3]
+        results[_m]["logdets"] += [r3]
 
     results[_m]["dists"] = np.vstack(results[_m]["dists"])
-    results[_m]["logdet"] = np.mean(results[_m]["logdet"])
 
-# Plot error
-for _ in methods:
-    mean = np.mean(results[_]["dists"], axis=0)
-    std = np.std(results[_]["dists"], axis=0)
-    x = np.arange(results[_]["dists"].shape[1])
-    
-    plt.plot(range(results[_]["dists"].shape[1]), mean, label=_)
-    plt.fill_between(x, mean - std, mean + std, alpha=0.2)
-plt.legend(loc='upper right')
+logdets = results["proposed"]["logdets"]
+logdets = np.vstack(logdets)
+mean = np.mean(logdets, axis=0)
+std = np.std(logdets, axis=0)
+plt.plot(range(logdets.shape[1]), mean, label="proposed")
+x = np.arange(logdets.shape[1])
+plt.fill_between(x, mean - std, mean + std, alpha=0.2)
+plt.legend(loc='lower right')
 plt.xlabel("Iteration")
-plt.ylabel(r'$||\hat{\theta} - \theta_\mathrm{true}||_\infty$')
+plt.ylabel(r'$\log \det\ \Sigma_\mathrm{model\ error}$')
 plt.show()
-
-# Plot selected inputs
-# Create two subplots arranged vertically (nrows=2, ncols=1)
-fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(3, 4))
-
-# Plot on the first subplot
-for _ in methods:
-    xs = np.vstack(results[_]["xs"])
-    axs[0].plot(range(len(xs[:, 0])), xs[:, 0], label=_)
-    axs[1].plot(range(len(xs[:, 1])), xs[:, 1], label=_)
-axs[0].set_title('Input Coordinate 1')
-axs[0].set_xlabel('timestep')
-# axs[0].legend(loc='upper right')
-axs[1].set_title('Input Coordinate 2')
-axs[1].set_xlabel('timestep')
-
-# Adjust layout to prevent overlap
-plt.tight_layout()
-
-# Show the plot
-plt.show()
-
-for _ in methods:
-    print(_, results[_]["logdet"])
-    print()
