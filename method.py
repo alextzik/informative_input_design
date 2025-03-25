@@ -35,7 +35,10 @@ def compute_map_estimate(theta_est: np.ndarray,
     prob = cp.Problem(cp.Minimize(sum(prior_objective+observation_objectives)), constraints)
     prob.solve(solver=cp.SCS)
 
-    return theta.value
+    if theta.value is None:
+        return theta_est
+    else:
+        return theta.value
 
 ###############################
 # Informative Input Design
