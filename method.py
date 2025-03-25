@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
 
-from dynamics import model, model_derivative_matrix, model_derivative_matrix_tensor
+from dynamics_henon import model, model_derivative_matrix, model_derivative_matrix_tensor
 
 ###############################
 # Parameter Estimation

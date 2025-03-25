@@ -52,5 +52,3 @@ def model_derivative_matrix_tensor(x: torch.Tensor, theta:torch.Tensor) -> torch
                      torch.cat([torch.tensor([0.0]), c_11.unsqueeze(0)])])
 
     return C
-
-    return C

@@ -9,7 +9,7 @@ import random
 
 import matplotlib.pyplot as plt
 
-from dynamics import true_dynamics, a, b, model, model_derivative_matrix
+from dynamics_henon import true_dynamics, a, b, model, model_derivative_matrix
 from method import compute_map_estimate, compute_next_input
 from helper_funcs import plot_confidence_ellipse, compute_log_det_Sigma
 from copy import copy
@@ -25,30 +25,33 @@ Sigma_prior = 0.1*np.eye(2)
 xs = [np.array([1., 1.]), np.array([1.1, 1.2]), np.array([1.15, 1.2])]
 ys = [true_dynamics(x) for x in xs]
 
-Sigma_obs = 0.2*np.eye(2)
+# Sigma = 0.2*np.eye(2)
+# Sigmas = [(a/10)*np.eye(2) for a in range(40, 140, 10)]
+Sigmas = [0.2*np.eye(2)]
+# for i in range(5):
+#     A = np.random.randn(2,2)
+#     Sigmas += [A.T@A + 0.01*np.eye(2)]
 
 DELTA = 0.3
 num_timesteps = 15
 num_iterations = 10
-NUMBER_OF_SINS = 30
-MAX_AMPL = 7.
 
 ###############################
 # Methods
 def run_method(theta_prior: np.ndarray,
-                        Sigma_prior: np.ndarray,
-                        xs: list[np.ndarray],
-                        ys: list[np.ndarray],
-                        Sigma_obs: np.ndarray,
-                        proposed: bool,
-                        delta:float=DELTA,
-                        ) -> list[float]:
+                Sigma_prior: np.ndarray,
+                xs: list[np.ndarray],
+                ys: list[np.ndarray],
+                Sigma: np.ndarray,
+                method: str,
+                delta: float=DELTA,
+                ) -> list[float]:
     
     delta = copy(delta)
     
     theta_prev = theta_prior.copy()
     dists = [np.linalg.norm(theta_prev - np.array([a, b]), ord=np.inf)]
-    Sigmas_obs = [Sigma_obs for _x in range(len(xs))]
+    Sigmas_obs = [Sigma for _x in range(len(xs))]
 
     ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
 
@@ -56,7 +59,7 @@ def run_method(theta_prior: np.ndarray,
         print(timestep)
 
         # Loop in Algorithm 1
-        if proposed:
+        if method=="proposed" or method=="naive":
             for iteration in range(num_iterations):
                 theta_next = compute_map_estimate(  theta_est=theta_prev,
                                                     theta_prior=theta_prior,
@@ -92,17 +95,21 @@ def run_method(theta_prior: np.ndarray,
                 linear_errors = np.hstack(linear_errors)
 
                 # Check if linearization errors are significant
-                if (np.mean(np.linalg.norm(linear_errors, axis=0)) >= 0.5*np.mean(np.linalg.norm(model_errors, axis=0))) and proposed:
+                if (np.mean(np.linalg.norm(linear_errors, axis=0)) >= 0.5*np.mean(np.linalg.norm(model_errors, axis=0))):
                     delta = delta*0.8 # Reduce trust region
 
                 else:
                     Sigma_obs = np.cov(linear_errors+model_errors)
                     Sigmas_obs = [Sigma_obs for _ in range(len(xs)+1)]
+
                     Sigma_model_errors = np.cov(model_errors)
+
                     Sigmas_model_errors = [Sigma_model_errors for _ in range(len(xs)+1)]
+
                     theta_prev = theta_next.copy()
+
         else:
-            Sigmas_obs = [Sigma_obs for _x in range(len(xs))]
+            Sigmas_obs = [Sigma for _x in range(len(xs))]
             theta_next = compute_map_estimate(  theta_est=theta_prev,
                                                     theta_prior=theta_prior,
                                                     Sigma_prior=Sigma_prior,
@@ -111,7 +118,6 @@ def run_method(theta_prior: np.ndarray,
                                                     Sigmas_obs=Sigmas_obs,
                                                     delta=delta
                                                     )
-            print(theta_next)
             # Compute posterior covariance
             Sigma_post = np.linalg.inv(
                     np.linalg.inv(Sigma_prior)  +
@@ -125,14 +131,21 @@ def run_method(theta_prior: np.ndarray,
 
             theta_prev = theta_next.copy()
 
-            Sigmas_model_errors = [Sigma_obs for _x in range(len(xs))]
+            Sigmas_model_errors = [Sigma for _x in range(len(xs))]
 
-
-        x_next, Sigma_post, min_Sigma_post = compute_next_input(theta_est=theta_next,
-                                                Sigma_prior=Sigma_prior,
-                                                xs=xs,
-                                                Sigmas_obs=Sigmas_model_errors)
+        if method=="naive":
+            x_next = np.random.rand(2,)
+        else:
+            x_next, Sigma_post, min_Sigma_post = compute_next_input(theta_est=theta_next,
+                                                    Sigma_prior=Sigma_prior,
+                                                    xs=xs,
+                                                    Sigmas_obs=Sigmas_model_errors)
         
+        logdet = compute_log_det_Sigma(theta_est=theta_next,
+                                    Sigma_prior=Sigma_prior,
+                                    xs=xs,
+                                    Sigmas_obs=Sigmas_model_errors)
+
         xs = xs + [x_next]
         ys = ys + [true_dynamics(x_next)]
 
@@ -144,198 +157,39 @@ def run_method(theta_prior: np.ndarray,
     ax.set_ylabel(r'$\theta_2$')
     plt.show()
 
-    logdet = compute_log_det_Sigma(theta_est=theta_next,
-                                   Sigma_prior=Sigma_prior,
-                                   xs=xs,
-                                   Sigmas_obs=[Sigma_obs for _x in range(len(xs))])
     return dists, xs, logdet
 
-
-def run_proposed_method_no_Sigma_update(theta_prior: np.ndarray,
-                        Sigma_prior: np.ndarray,
-                        xs: list[np.ndarray],
-                        ys: list[np.ndarray],
-                        Sigma_obs: np.ndarray) -> list[float]:
-    
-    theta_est = theta_prior.copy()
-    dists = [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
-
-    for timestep in range(num_timesteps):
-        print(timestep)
-        theta_est = compute_map_estimate(   theta_est=theta_est,
-                                            theta_prior=theta_prior,
-                                            Sigma_prior=Sigma_prior,
-                                            ys=ys,
-                                            xs=xs,
-                                            Sigmas_obs=[Sigma_obs for _x in range(len(xs))],
-                                            )
-        
-        x_next, Sigma_post = compute_next_input(theta_est=theta_est,
-                                    Sigma_prior=Sigma_prior,
-                                    xs=xs,
-                                    Sigmas_obs=[Sigma_obs for _x in range(len(xs)+1)])
-        
-        if np.linalg.norm(x_next) >= MAX_AMPL:
-            x_next = x_next/np.linalg.norm(x_next)*MAX_AMPL
-        
-        xs = xs + [x_next]
-        ys = ys + [true_dynamics(x_next)]
-
-        dists += [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
-
-    logdet = compute_log_det_Sigma(theta_est=theta_est,
-                                   Sigma_prior=Sigma_prior,
-                                   xs=xs,
-                                   Sigmas_obs=[Sigma_obs for _x in range(len(xs))])
-
-    return dists, xs, logdet
-
-def run_random_selection(theta_prior: np.ndarray,
-                        Sigma_prior: np.ndarray,
-                        xs: list[np.ndarray],
-                        ys: list[np.ndarray],
-                        Sigma_obs: np.ndarray) -> list[float]:
-    dists = []
-    theta_est = theta_prior.copy()
-    for timestep in range(num_timesteps):
-        print(timestep)
-        theta_est = compute_map_estimate(   theta_est=theta_est,
-                                            theta_prior=theta_prior,
-                                            Sigma_prior=Sigma_prior,
-                                            ys=ys,
-                                            xs=xs,
-                                            Sigmas_obs=[Sigma_obs for _x in range(len(xs))],
-                                            )
-        
-        x_next = 1*np.random.normal(size=xs[0].shape)
-
-        if np.linalg.norm(x_next) >= MAX_AMPL:
-            x_next = x_next/np.linalg.norm(x_next)*MAX_AMPL
-        
-        xs = xs + [x_next]
-        ys = ys + [true_dynamics(x_next)]
-
-        dists += [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
-
-    logdet = compute_log_det_Sigma(theta_est=theta_est,
-                                   Sigma_prior=Sigma_prior,
-                                   xs=xs,
-                                   Sigmas_obs=[Sigma_obs for _x in range(len(xs))])
-
-    return dists, xs, logdet
-
-def run_prbs(theta_prior: np.ndarray,
-                        Sigma_prior: np.ndarray,
-                        xs: list[np.ndarray],
-                        ys: list[np.ndarray],
-                        Sigma_obs: np.ndarray) -> list[float]:
-    dists = []
-    theta_est = theta_prior.copy()
-    for timestep in range(num_timesteps):
-        print(timestep)
-        theta_est = compute_map_estimate(   theta_est=theta_est,
-                                            theta_prior=theta_prior,
-                                            Sigma_prior=Sigma_prior,
-                                            ys=ys,
-                                            xs=xs,
-                                            Sigmas_obs=[Sigma_obs for _x in range(len(xs))],
-                                            )
-        
-        x_next = np.array([random.choice([0., 1.]) for _ in range(len(xs[0]))]).reshape(xs[0].shape)
-
-        if np.linalg.norm(x_next) >= MAX_AMPL:
-            x_next = x_next/np.linalg.norm(x_next)*MAX_AMPL
-        
-        xs = xs + [x_next]
-        ys = ys + [true_dynamics(x_next)]
-
-        dists += [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
-
-    logdet = compute_log_det_Sigma(theta_est=theta_est,
-                                   Sigma_prior=Sigma_prior,
-                                   xs=xs,
-                                   Sigmas_obs=[Sigma_obs for _x in range(len(xs))])
-
-    return dists, xs, logdet
-
-def run_multisine(theta_prior: np.ndarray,
-                        Sigma_prior: np.ndarray,
-                        xs: list[np.ndarray],
-                        ys: list[np.ndarray],
-                        Sigma_obs: np.ndarray) -> list[float]:
-    dists = []
-    theta_est = theta_prior.copy()
-
-    for timestep in range(num_timesteps):
-        print(timestep)
-        theta_est = compute_map_estimate(   theta_est=theta_est,
-                                            theta_prior=theta_prior,
-                                            Sigma_prior=Sigma_prior,
-                                            ys=ys,
-                                            xs=xs,
-                                            Sigmas_obs=[Sigma_obs for _x in range(len(xs))],
-                                            )
-        
-        x_next = np.array([
-            np.sum([np.random.uniform(-1,1)*np.sin(2*np.pi*(2*j+0)*(timestep+1)/num_timesteps + np.random.uniform(0, 2*np.pi)) for j in range(NUMBER_OF_SINS)]),
-            np.sum([np.random.uniform(-1,1)*np.sin(2*np.pi*(2*j+1)*(timestep+1)/num_timesteps + np.random.uniform(0, 2*np.pi)) for j in range(NUMBER_OF_SINS)])
-        ]).reshape(xs[0].shape)
-
-        if np.linalg.norm(x_next) >= MAX_AMPL:
-            x_next = x_next/np.linalg.norm(x_next)*MAX_AMPL
-        
-        xs = xs + [x_next]
-        ys = ys + [true_dynamics(x_next)]
-
-        dists += [np.linalg.norm(theta_est - np.array([a, b]), ord=np.inf)]
-
-    logdet = compute_log_det_Sigma(theta_est=theta_est,
-                                   Sigma_prior=Sigma_prior,
-                                   xs=xs,
-                                   Sigmas_obs=[Sigma_obs for _x in range(len(xs))])
-
-    return dists, xs, logdet
 
 ###############################
 # Main loop
-methods = ["proposed", "baseline"] # "random", "PRBS", "multisine"]
+methods = ["proposed", "baseline"] 
 results = {_: {} for _ in methods}
-results["proposed"]["dists"], results["proposed"]["xs"], results["proposed"]["logdet"] = run_method(theta_prior=theta_prior,
-                                                                    Sigma_prior=Sigma_prior,
-                                                                    xs=xs,
-                                                                    ys=ys,
-                                                                    Sigma_obs=Sigma_obs,
-                                                                    proposed=True)
-results["baseline"]["dists"], results["baseline"]["xs"], results["baseline"]["logdet"] = run_method(theta_prior=theta_prior,
-                                                                    Sigma_prior=Sigma_prior,
-                                                                    xs=xs,
-                                                                    ys=ys,
-                                                                    Sigma_obs=Sigma_obs,
-                                                                    proposed=False)
-# dists_proposed_no_Sigma_update = run_proposed_method_no_Sigma_update(theta_prior=theta_prior,
-#                                         Sigma_prior=Sigma_prior,
-#                                         xs=xs,
-#                                         ys=ys,
-#                                         Sigma_obs=Sigma_obs)
-# results["random"]["dists"], results["random"]["xs"], results["random"]["logdet"] = run_random_selection(theta_prior=theta_prior,
-#                                                                     Sigma_prior=Sigma_prior,
-#                                                                     xs=xs,
-#                                                                     ys=ys,
-#                                                                     Sigma_obs=Sigma_obs)
-# results["PRBS"]["dists"], results["PRBS"]["xs"], results["PRBS"]["logdet"] = run_prbs(theta_prior=theta_prior,
-#                                                                     Sigma_prior=Sigma_prior,
-#                                                                     xs=xs,
-#                                                                     ys=ys,
-#                                                                     Sigma_obs=Sigma_obs)
-# results["multisine"]["dists"], results["multisine"]["xs"], results["multisine"]["logdet"] = run_multisine(theta_prior=theta_prior,
-#                                                                     Sigma_prior=Sigma_prior,
-#                                                                     xs=xs,
-#                                                                     ys=ys,
-#                                                                     Sigma_obs=Sigma_obs)
+for _m in methods:
+    results[_m]["dists"] = []
+    results[_m]["xs"] = []
+    results[_m]["logdet"] = []
+    for Sigma in Sigmas:
+        r1, r2, r3 = run_method(theta_prior=theta_prior,
+                                Sigma_prior=Sigma_prior,
+                                xs=xs,
+                                ys=ys,
+                                Sigma=Sigma,
+                                method=_m)
+        results[_m]["dists"] += [r1]
+        results[_m]["xs"] += [r2]
+        results[_m]["logdet"] += [r3]
+
+    results[_m]["dists"] = np.vstack(results[_m]["dists"])
+    results[_m]["logdet"] = np.mean(results[_m]["logdet"])
 
 # Plot error
 for _ in methods:
-    plt.plot(range(len(results[_]["dists"])), results[_]["dists"], label=_)
+    mean = np.mean(results[_]["dists"], axis=0)
+    std = np.std(results[_]["dists"], axis=0)
+    x = np.arange(results[_]["dists"].shape[1])
+    
+    plt.plot(range(results[_]["dists"].shape[1]), mean, label=_)
+    plt.fill_between(x, mean - std, mean + std, alpha=0.2)
 plt.legend(loc='upper right')
 plt.xlabel("Iteration")
 plt.ylabel(r'$||\hat{\theta} - \theta_\mathrm{true}||_\infty$')
