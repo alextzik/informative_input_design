@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
 
-from dynamics_henon import model, model_derivative_matrix, model_derivative_matrix_tensor
+from dynamics import model, model_derivative_matrix, model_derivative_matrix_tensor
 
 ###############################
 # Parameter Estimation
@@ -24,7 +24,7 @@ def compute_map_estimate(theta_est: np.ndarray,
                          delta:float) -> np.ndarray:
 
     theta = cp.Variable(theta_est.shape[0])
-    prior_objective = [0.] #[cp.matrix_frac(theta - theta_prior, Sigma_prior)]
+    prior_objective = [cp.matrix_frac(theta - theta_prior, Sigma_prior)]
     observation_objectives = [cp.matrix_frac(
                                     y - model(x, theta_est) - model_derivative_matrix(x, theta_est)@(theta-theta_est), 
                                     Sigma_obs)
@@ -65,7 +65,7 @@ def compute_next_input(theta_est: np.ndarray,
     )
     
     # Constant part: inverse of Sigma_prior + sum_term
-    const = sum_term #torch.inverse(Sigma_prior) +
+    const = sum_term + torch.inverse(Sigma_prior) 
     
     # Initialize x as a torch tensor of type float32 with requires_grad=True
     x = torch.tensor([1.0, 1.0], dtype=torch.float32, requires_grad=True)

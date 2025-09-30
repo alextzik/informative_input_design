@@ -9,7 +9,7 @@ import numpy as np
 
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
-from dynamics_henon import model_derivative_matrix
+from dynamics import model_derivative_matrix
 
 def plot_confidence_ellipse(mean, cov, ax=None, n_std=3.0, facecolor='none', **kwargs):
     """

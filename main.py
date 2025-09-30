@@ -9,7 +9,7 @@ import random
 
 import matplotlib.pyplot as plt
 
-from dynamics_henon import true_dynamics, a, b, model, model_derivative_matrix
+from dynamics import true_dynamics, a, b, model, model_derivative_matrix
 from method import compute_map_estimate, compute_next_input
 from helper_funcs import plot_confidence_ellipse, compute_log_det_Sigma
 from copy import copy
@@ -19,8 +19,8 @@ plt.rcParams['font.size'] = 25
 
 ###############################
 # Parameters
-theta_prior = np.array([7., 4.])
-Sigma_prior = 0.1*np.eye(2)
+thetas_prior = [np.array([7., 4.])]
+Sigmas_prior = [0.1*np.eye(2)]
 
 xs = [np.array([1., 1.]), np.array([1.1, 1.2]), np.array([1.15, 1.2])]
 ys = [true_dynamics(x) for x in xs]
@@ -28,13 +28,19 @@ ys = [true_dynamics(x) for x in xs]
 # Sigma = 0.2*np.eye(2)
 # Sigmas = [(a/10)*np.eye(2) for a in range(40, 140, 10)]
 Sigmas = [0.2*np.eye(2)]
-# for i in range(20):
-#     A = np.random.randn(2,2)
-#     Sigmas += [A.T@A + 0.01*np.eye(2)]
+for i in range(0):
+    A = np.random.randn(2,2)
+    Sigmas += [A.T@A + 0.01*np.eye(2)]
+
+    thetas_prior += [np.array([random.uniform(-3,9), random.uniform(2,6)])]
+
+    A = 3*np.random.randn(2,2)
+    Sigmas += [A.T@A + 0.01*np.eye(2)]
+    Sigmas_prior += [A.T@A + 0.01*np.eye(2)]
 
 DELTA = 0.3
-num_timesteps = 15
-num_iterations = 2
+num_timesteps = 45
+num_iterations = 10
 
 ###############################
 # Methods
@@ -51,6 +57,9 @@ def run_method(theta_prior: np.ndarray,
     
     theta_prev = theta_prior.copy()
     dists = [np.linalg.norm(theta_prev - np.array([a, b]), ord=np.inf)]
+    errors_dict = {}
+    errors_dict["model_errors"] = []
+    errors_dict["linearization_errors"] = []
     Sigmas_obs = [Sigma for _x in range(len(xs))]
 
     ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
@@ -145,35 +154,37 @@ def run_method(theta_prior: np.ndarray,
                                                     Sigma_prior=Sigma_prior,
                                                     xs=xs,
                                                     Sigmas_obs=Sigmas_model_errors)
-        
-        logdet = compute_log_det_Sigma(theta_est=theta_next,
-                                    Sigma_prior=Sigma_prior,
-                                    xs=xs,
-                                    Sigmas_obs=Sigmas_model_errors)
 
         xs = xs + [x_next]
         ys = ys + [true_dynamics(x_next)]
 
         dists += [np.linalg.norm(theta_next - np.array([a, b]), ord=np.inf)]
-    
+        errors_dict["model_errors"] += [np.mean(np.linalg.norm(model_errors, axis=0))]
+        errors_dict["linearization_errors"] += [np.mean(np.linalg.norm(linear_errors, axis=0))]
+
     ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
     ax.grid(True)
     ax.set_xlabel(r'$\theta_1$')
     ax.set_ylabel(r'$\theta_2$')
     plt.show()
 
-    return dists, xs, logdet
+    return dists, xs, errors_dict
 
 
 ###############################
 # Main loop
-methods = ["proposed", "baseline"] 
+methods = ["proposed"] 
 results = {_: {} for _ in methods}
+j = 0
 for _m in methods:
     results[_m]["dists"] = []
     results[_m]["xs"] = []
-    results[_m]["logdet"] = []
-    for Sigma in Sigmas:
+    results[_m]["errors_dict"] = {}
+    results[_m]["errors_dict"]["model_errors"] = []
+    results[_m]["errors_dict"]["linearization_errors"] = []
+    for Sigma, theta_prior, Sigma_prior in zip(Sigmas, thetas_prior, Sigmas_prior): 
+        j += 1
+        print(f"Run {j}")
         r1, r2, r3 = run_method(theta_prior=theta_prior,
                                 Sigma_prior=Sigma_prior,
                                 xs=xs,
@@ -182,10 +193,12 @@ for _m in methods:
                                 method=_m)
         results[_m]["dists"] += [r1]
         results[_m]["xs"] += [r2]
-        results[_m]["logdet"] += [r3]
+        results[_m]["errors_dict"]["model_errors"] += [r3["model_errors"]]
+        results[_m]["errors_dict"]["linearization_errors"] += [r3["linearization_errors"]]
 
     results[_m]["dists"] = np.vstack(results[_m]["dists"])
-    results[_m]["logdet"] = np.mean(results[_m]["logdet"])
+    results[_m]["errors_dict"]["model_errors"] = np.vstack(results[_m]["errors_dict"]["model_errors"])
+    results[_m]["errors_dict"]["linearization_errors"] = np.vstack(results[_m]["errors_dict"]["linearization_errors"])
 
 # Plot error
 plt.figure(figsize=(10, 6))
@@ -196,9 +209,10 @@ for _ in methods:
     
     plt.plot(range(results[_]["dists"].shape[1]), mean, label=_)
     plt.fill_between(x, mean - std, mean + std, alpha=0.2)
-plt.legend(loc='upper right')
+# plt.legend(loc='upper right')
 plt.xlabel("Iteration")
 plt.ylabel(r'$||\hat{\theta} - \theta_\mathrm{true}||_\infty$')
+plt.tight_layout()
 plt.show()
 
 # Plot selected inputs
@@ -214,7 +228,7 @@ axs[0].set_title('Input Coordinate 1')
 axs[0].set_xlabel('timestep')
 # axs[0].legend(loc='upper right')
 axs[1].set_title('Input Coordinate 2')
-axs[1].set_xlabel('timestep')
+axs[1].set_xlabel('Time')
 
 # Adjust layout to prevent overlap
 plt.tight_layout()
@@ -222,6 +236,22 @@ plt.tight_layout()
 # Show the plot
 plt.show()
 
+# plot logdet
+plt.figure(figsize=(10, 6))
 for _ in methods:
-    print(_, results[_]["logdet"])
-    print()
+    mean = np.mean(results[_]["errors_dict"]["model_errors"], axis=0)
+    std = np.std(results[_]["errors_dict"]["model_errors"], axis=0)
+    x = np.arange(mean.shape[0])
+    plt.plot(x, mean, label="Model")
+    plt.fill_between(x, mean - std, mean + std, alpha=0.2)
+
+    mean = np.mean(results[_]["errors_dict"]["linearization_errors"], axis=0)
+    std = np.std(results[_]["errors_dict"]["linearization_errors"], axis=0)
+    plt.plot(x, mean, label="Linearization")
+    plt.fill_between(x, mean - std, mean + std, alpha=0.2)
+
+plt.xlabel("Time")
+plt.ylabel("Average Error Norm")
+plt.legend(loc='upper right')
+plt.tight_layout()
+plt.show()
