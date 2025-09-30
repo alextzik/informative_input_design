@@ -15,7 +15,7 @@ from helper_funcs import plot_confidence_ellipse, compute_log_det_Sigma
 from copy import copy
 
 plt.rcParams['font.family'] = 'Times New Roman'
-plt.rcParams['font.size'] = 15
+plt.rcParams['font.size'] = 25
 
 ###############################
 # Parameters
@@ -28,13 +28,13 @@ ys = [true_dynamics(x) for x in xs]
 # Sigma = 0.2*np.eye(2)
 # Sigmas = [(a/10)*np.eye(2) for a in range(40, 140, 10)]
 Sigmas = [0.2*np.eye(2)]
-# for i in range(5):
+# for i in range(20):
 #     A = np.random.randn(2,2)
 #     Sigmas += [A.T@A + 0.01*np.eye(2)]
 
 DELTA = 0.3
 num_timesteps = 15
-num_iterations = 10
+num_iterations = 2
 
 ###############################
 # Methods
@@ -100,6 +100,8 @@ def run_method(theta_prior: np.ndarray,
 
                 else:
                     Sigma_obs = np.cov(linear_errors+model_errors)
+                    # make sure Sigma_obs is positive definite
+                    Sigma_obs += 0.01*np.eye(Sigma_obs.shape[0])
                     Sigmas_obs = [Sigma_obs for _ in range(len(xs)+1)]
 
                     Sigma_model_errors = np.cov(model_errors)
@@ -110,14 +112,17 @@ def run_method(theta_prior: np.ndarray,
 
         else:
             Sigmas_obs = [Sigma for _x in range(len(xs))]
-            theta_next = compute_map_estimate(  theta_est=theta_prev,
-                                                    theta_prior=theta_prior,
-                                                    Sigma_prior=Sigma_prior,
-                                                    ys=ys,
-                                                    xs=xs,
-                                                    Sigmas_obs=Sigmas_obs,
-                                                    delta=delta
-                                                    )
+            for iteration in range(num_iterations):
+                theta_next = compute_map_estimate(  theta_est=theta_prev,
+                                                        theta_prior=theta_prior,
+                                                        Sigma_prior=Sigma_prior,
+                                                        ys=ys,
+                                                        xs=xs,
+                                                        Sigmas_obs=Sigmas_obs,
+                                                        delta=delta
+                                                        )
+                theta_prev = theta_next.copy()
+
             # Compute posterior covariance
             Sigma_post = np.linalg.inv(
                     np.linalg.inv(Sigma_prior)  +
@@ -183,6 +188,7 @@ for _m in methods:
     results[_m]["logdet"] = np.mean(results[_m]["logdet"])
 
 # Plot error
+plt.figure(figsize=(10, 6))
 for _ in methods:
     mean = np.mean(results[_]["dists"], axis=0)
     std = np.std(results[_]["dists"], axis=0)
@@ -197,7 +203,7 @@ plt.show()
 
 # Plot selected inputs
 # Create two subplots arranged vertically (nrows=2, ncols=1)
-fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(3, 4))
+fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(10, 6))
 
 # Plot on the first subplot
 for _ in methods:
