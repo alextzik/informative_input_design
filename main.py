@@ -9,7 +9,7 @@ import random
 
 import matplotlib.pyplot as plt
 
-from dynamics import true_dynamics, a, b, model, model_derivative_matrix
+from dynamics import true_dynamics, A as A_dyn, model, model_derivative_matrix
 from method import compute_map_estimate, compute_next_input
 from helper_funcs import plot_confidence_ellipse, compute_log_det_Sigma
 from copy import copy
@@ -19,26 +19,27 @@ plt.rcParams['font.size'] = 25
 
 ###############################
 # Parameters
-thetas_prior = [np.array([7., 4.,])]
-Sigmas_prior = [0.1*np.eye(2)]
+thetas_prior = [np.array([7., 4., 3., 2.])]
+Sigmas_prior = [0.1*np.eye(4)]
 
-xs = [np.array([1., 1.]), np.array([1.1, 1.2]), np.array([1.15, 1.2])]
+xs = [np.array([1., 1.]), np.array([0.1, 0.7]), np.array([0.2, 0.5])]
 ys = [true_dynamics(x) for x in xs]
 
 # Sigma = 0.2*np.eye(2)
 # Sigmas = [(a/10)*np.eye(2) for a in range(40, 140, 10)]
 Sigmas = [0.2*np.eye(2)]
-for i in range(0):
+for i in range(30):
     A = np.random.randn(2,2)
     Sigmas += [A.T@A + 0.01*np.eye(2)]
 
-    thetas_prior += [np.array([random.uniform(-3,9), random.uniform(2,6)])]
+    thetas_prior += [np.array([random.uniform(-3,9), random.uniform(2,6), random.uniform(-1,5), random.uniform(-1,5)])]
 
-    A = 3*np.random.randn(2,2)
-    Sigmas_prior += [A.T@A + 0.01*np.eye(2)]
+    A = 3*np.random.randn(4,4)
+    Sigmas_prior += [A.T@A + 0.01*np.eye(4)]
 
 DELTA = 0.3
-num_timesteps = 45
+MAX_AMPL = 0.5
+num_timesteps = 100
 num_iterations = 10
 
 ###############################
@@ -55,14 +56,14 @@ def run_method(theta_prior: np.ndarray,
     delta = copy(delta)
     
     theta_prev = theta_prior.copy()
-    dists = [np.linalg.norm(theta_prev - np.array([a, b]), ord=np.inf)]
+    dists = [np.linalg.norm(theta_prev.reshape(2,2) - A_dyn, ord=np.inf)]
     errors_dict = {}
     errors_dict["model_errors"] = []
     errors_dict["linearization_errors"] = []
     log_dets = []
     Sigmas_obs = [Sigma for _x in range(len(xs))]
 
-    ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
+    # ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
 
     for timestep in range(num_timesteps):
         print(timestep)
@@ -87,7 +88,7 @@ def run_method(theta_prior: np.ndarray,
                         for (_x, S) in zip(xs, Sigmas_obs)])
                 )
 
-                ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
+                # ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
                 
                 # Obtain model errors
                 model_errors = []
@@ -155,19 +156,22 @@ def run_method(theta_prior: np.ndarray,
                                                     xs=xs,
                                                     Sigmas_obs=Sigmas_model_errors)
 
+        if np.linalg.norm(x_next) >= MAX_AMPL:
+            x_next = x_next/np.linalg.norm(x_next)*MAX_AMPL
+        
         xs = xs + [x_next]
         ys = ys + [true_dynamics(x_next)]
 
-        dists += [np.linalg.norm(theta_next - np.array([a, b]), ord=np.inf)]
+        dists += [np.linalg.norm(theta_prev.reshape(2,2) - A_dyn, ord=np.inf)]
         errors_dict["model_errors"] += [np.mean(np.linalg.norm(model_errors, axis=0))]
         errors_dict["linearization_errors"] += [np.mean(np.linalg.norm(linear_errors, axis=0))]
         log_dets += [np.linalg.slogdet(Sigmas_model_errors[0])[1]]
 
-    ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
-    ax.grid(True)
-    ax.set_xlabel(r'$\theta_1$')
-    ax.set_ylabel(r'$\theta_2$')
-    plt.show()
+    # ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
+    # ax.grid(True)
+    # ax.set_xlabel(r'$\theta_1$')
+    # ax.set_ylabel(r'$\theta_2$')
+    # plt.show()
 
     return dists, xs, errors_dict, log_dets
 
