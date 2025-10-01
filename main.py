@@ -9,7 +9,7 @@ import random
 
 import matplotlib.pyplot as plt
 
-from dynamics import true_dynamics, a, b, model, model_derivative_matrix
+from dynamics import true_dynamics, Dt, b, model, model_derivative_matrix
 from method import compute_map_estimate, compute_next_input
 from helper_funcs import plot_confidence_ellipse, compute_log_det_Sigma
 from copy import copy
@@ -19,26 +19,27 @@ plt.rcParams['font.size'] = 25
 
 ###############################
 # Parameters
-thetas_prior = [np.array([7., 4.,])]
-Sigmas_prior = [0.1*np.eye(2)]
+thetas_prior = [np.array([0.4, 2.5])]
+Sigmas_prior = [0.5*np.eye(2)]
 
-xs = [np.array([1., 1.]), np.array([1.1, 1.2]), np.array([1.15, 1.2])]
-ys = [true_dynamics(x) for x in xs]
+us = [np.array([0., 0.]), np.array([0.3, 0.1]), np.array([0.2, 0.1])]
+xs = [np.array([0., 0, 0.]), np.array([0.1, 0., 0.]), np.array([0.25, 0.05, 0.01])]
+ys = [true_dynamics(x, u) for (x, u) in zip(xs, us)]
 
-# Sigma = 0.2*np.eye(2)
+Sigmas = [0.2*np.eye(3)]
 # Sigmas = [(a/10)*np.eye(2) for a in range(40, 140, 10)]
-Sigmas = [0.2*np.eye(2)]
-for i in range(0):
-    A = np.random.randn(2,2)
-    Sigmas += [A.T@A + 0.01*np.eye(2)]
+for i in range(30):
+    A = np.random.randn(3,3)
+    Sigmas += [A.T@A + 0.01*np.eye(3)]
 
-    thetas_prior += [np.array([random.uniform(-3,9), random.uniform(2,6)])]
+    thetas_prior += [np.array([random.uniform(0,2), random.uniform(0,2)])]
 
     A = 3*np.random.randn(2,2)
     Sigmas_prior += [A.T@A + 0.01*np.eye(2)]
 
 DELTA = 0.3
-num_timesteps = 45
+MAX_AMPL = 1.
+num_timesteps = 30
 num_iterations = 10
 
 ###############################
@@ -47,6 +48,7 @@ def run_method(theta_prior: np.ndarray,
                 Sigma_prior: np.ndarray,
                 xs: list[np.ndarray],
                 ys: list[np.ndarray],
+                us: list[np.ndarray],
                 Sigma: np.ndarray,
                 method: str,
                 delta: float=DELTA,
@@ -55,14 +57,14 @@ def run_method(theta_prior: np.ndarray,
     delta = copy(delta)
     
     theta_prev = theta_prior.copy()
-    dists = [np.linalg.norm(theta_prev - np.array([a, b]), ord=np.inf)]
+    dists = [np.linalg.norm(theta_prev - np.array([Dt, b]), ord=np.inf)]
     errors_dict = {}
     errors_dict["model_errors"] = []
     errors_dict["linearization_errors"] = []
     log_dets = []
     Sigmas_obs = [Sigma for _x in range(len(xs))]
 
-    ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
+    # ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
 
     for timestep in range(num_timesteps):
         print(timestep)
@@ -75,31 +77,32 @@ def run_method(theta_prior: np.ndarray,
                                                     Sigma_prior=Sigma_prior,
                                                     ys=ys,
                                                     xs=xs,
+                                                    us=us,
                                                     Sigmas_obs=Sigmas_obs,
                                                     delta=delta
                                                     )
                 # Compute posterior covariance
                 Sigma_post = np.linalg.inv(
                     np.linalg.inv(Sigma_prior)  +
-                    sum([model_derivative_matrix(_x, theta_next).T 
+                    sum([model_derivative_matrix(_x, _u, theta_next).T 
                                 @ np.linalg.inv(S) 
-                                @ model_derivative_matrix(_x, theta_next)
-                        for (_x, S) in zip(xs, Sigmas_obs)])
+                                @ model_derivative_matrix(_x, _u,theta_next)
+                        for (_x, _u, S) in zip(xs, us, Sigmas_obs)])
                 )
 
-                ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
+                # ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
                 
                 # Obtain model errors
                 model_errors = []
                 for _ in range(len(ys)):
-                    model_errors += [(ys[_] - model(xs[_], theta_next)).reshape(-1,1)]
+                    model_errors += [(ys[_] - model(xs[_], us[_], theta_next)).reshape(-1,1)]
                 model_errors = np.hstack(model_errors)
 
                 # Obtain linearization errors
                 linear_errors = []
                 for _ in range(len(ys)):
-                    linear_errors += [( model(xs[_], theta_next) - (model(xs[_], theta_prev) 
-                                                                    + model_derivative_matrix(xs[_], theta_prev)@(theta_next-theta_prev))
+                    linear_errors += [( model(xs[_], us[_], theta_next) - (model(xs[_], us[_], theta_prev) 
+                                                                    + model_derivative_matrix(xs[_], us[_], theta_prev)@(theta_next-theta_prev))
                                         ).reshape(-1,1)]
                 linear_errors = np.hstack(linear_errors)
 
@@ -123,13 +126,14 @@ def run_method(theta_prior: np.ndarray,
             Sigmas_obs = [Sigma for _x in range(len(xs))]
             for iteration in range(num_iterations):
                 theta_next = compute_map_estimate(  theta_est=theta_prev,
-                                                        theta_prior=theta_prior,
-                                                        Sigma_prior=Sigma_prior,
-                                                        ys=ys,
-                                                        xs=xs,
-                                                        Sigmas_obs=Sigmas_obs,
-                                                        delta=delta
-                                                        )
+                                                    theta_prior=theta_prior,
+                                                    Sigma_prior=Sigma_prior,
+                                                    ys=ys,
+                                                    xs=xs,
+                                                    us=us,
+                                                    Sigmas_obs=Sigmas_obs,
+                                                    delta=delta
+                                                    )
                 theta_prev = theta_next.copy()
 
             # Compute posterior covariance
@@ -150,26 +154,34 @@ def run_method(theta_prior: np.ndarray,
         if method=="naive":
             x_next = np.random.rand(2,)
         else:
-            x_next, Sigma_post, min_Sigma_post = compute_next_input(theta_est=theta_next,
+            u_next, Sigma_post = compute_next_input(theta_est=theta_next,
                                                     Sigma_prior=Sigma_prior,
                                                     xs=xs,
+                                                    us=us, 
+                                                    ys=ys,
                                                     Sigmas_obs=Sigmas_model_errors)
 
-        xs = xs + [x_next]
-        ys = ys + [true_dynamics(x_next)]
+        if np.abs(u_next[0]) > MAX_AMPL:
+            u_next[0] = np.sign(u_next[0])*MAX_AMPL/np.abs(u_next[0])
+        # wrap u_next[1] to be within [-pi, pi]
+        u_next[1] = u_next[1]%(2*np.pi)
 
-        dists += [np.linalg.norm(theta_next - np.array([a, b]), ord=np.inf)]
+        us = us + [u_next]
+        xs = xs + [ys[-1]]
+        ys = ys + [true_dynamics(xs[-1], u_next)]
+
+        dists += [np.linalg.norm(theta_next - np.array([Dt, b]), ord=np.inf)]
         errors_dict["model_errors"] += [np.mean(np.linalg.norm(model_errors, axis=0))]
         errors_dict["linearization_errors"] += [np.mean(np.linalg.norm(linear_errors, axis=0))]
         log_dets += [np.linalg.slogdet(Sigmas_model_errors[0])[1]]
 
-    ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
-    ax.grid(True)
-    ax.set_xlabel(r'$\theta_1$')
-    ax.set_ylabel(r'$\theta_2$')
-    plt.show()
+    # ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
+    # ax.grid(True)
+    # ax.set_xlabel(r'$\theta_1$')
+    # ax.set_ylabel(r'$\theta_2$')
+    # plt.show()
 
-    return dists, xs, errors_dict, log_dets
+    return dists, us, errors_dict, log_dets
 
 
 ###############################
@@ -191,6 +203,7 @@ for _m in methods:
                                 Sigma_prior=Sigma_prior,
                                 xs=xs,
                                 ys=ys,
+                                us=us,
                                 Sigma=Sigma,
                                 method=_m)
         results[_m]["dists"] += [r1]
