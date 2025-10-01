@@ -19,8 +19,8 @@ plt.rcParams['font.size'] = 25
 
 ###############################
 # Parameters
-thetas_prior = [np.array([7., 4.,])]
-Sigmas_prior = [0.1*np.eye(2)]
+thetas_prior = [np.array([7., 4., 2., 1.])]
+Sigmas_prior = [0.1*np.eye(4)]
 
 xs = [np.array([1., 1.]), np.array([1.1, 1.2]), np.array([1.15, 1.2])]
 ys = [true_dynamics(x) for x in xs]
@@ -32,10 +32,10 @@ for i in range(30):
     A = np.random.randn(2,2)
     Sigmas += [A.T@A + 0.01*np.eye(2)]
 
-    thetas_prior += [np.array([random.uniform(-3,9), random.uniform(2,6)])]
+    thetas_prior += [np.array([random.uniform(-3,9), random.uniform(2,6), random.uniform(2,6), random.uniform(2,6)])]
 
-    A = 3*np.random.randn(2,2)
-    Sigmas_prior += [A.T@A + 0.01*np.eye(2)]
+    A = 3*np.random.randn(4,4)
+    Sigmas_prior += [A.T@A + 0.01*np.eye(4)]
 
 DELTA = 0.3
 num_timesteps = 45
@@ -167,7 +167,7 @@ def run_method(theta_prior: np.ndarray,
     ax.grid(True)
     ax.set_xlabel(r'$\theta_1$')
     ax.set_ylabel(r'$\theta_2$')
-    plt.show()
+    # plt.show()
 
     return dists, xs, errors_dict, log_dets
 
