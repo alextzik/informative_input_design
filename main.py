@@ -28,7 +28,7 @@ ys = [true_dynamics(x) for x in xs]
 # Sigma = 0.2*np.eye(2)
 # Sigmas = [(a/10)*np.eye(2) for a in range(40, 140, 10)]
 Sigmas = [0.2*np.eye(2)]
-for i in range(30):
+for i in range(0):
     A = np.random.randn(2,2)
     Sigmas += [A.T@A + 0.01*np.eye(2)]
 
@@ -62,7 +62,7 @@ def run_method(theta_prior: np.ndarray,
     log_dets = []
     Sigmas_obs = [Sigma for _x in range(len(xs))]
 
-    # ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
+    ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
 
     for timestep in range(num_timesteps):
         print(timestep)
@@ -87,7 +87,7 @@ def run_method(theta_prior: np.ndarray,
                         for (_x, S) in zip(xs, Sigmas_obs)])
                 )
 
-                # ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
+                ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
                 
                 # Obtain model errors
                 model_errors = []
@@ -163,11 +163,11 @@ def run_method(theta_prior: np.ndarray,
         errors_dict["linearization_errors"] += [np.mean(np.linalg.norm(linear_errors, axis=0))]
         log_dets += [np.linalg.slogdet(Sigmas_model_errors[0])[1]]
 
-    # ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
-    # ax.grid(True)
-    # ax.set_xlabel(r'$\theta_1$')
-    # ax.set_ylabel(r'$\theta_2$')
-    # plt.show()
+    ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
+    ax.grid(True)
+    ax.set_xlabel(r'$\theta_1$')
+    ax.set_ylabel(r'$\theta_2$')
+    plt.show()
 
     return dists, xs, errors_dict, log_dets
 
