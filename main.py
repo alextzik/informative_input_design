@@ -19,8 +19,8 @@ plt.rcParams['font.size'] = 25
 
 ###############################
 # Parameters
-thetas_prior = [np.array([7., 4., 2., 1.])]
-Sigmas_prior = [0.1*np.eye(4)]
+thetas_prior = [np.array([7., 4.,])]
+Sigmas_prior = [0.1*np.eye(2)]
 
 xs = [np.array([1., 1.]), np.array([1.1, 1.2]), np.array([1.15, 1.2])]
 ys = [true_dynamics(x) for x in xs]
@@ -32,10 +32,10 @@ for i in range(30):
     A = np.random.randn(2,2)
     Sigmas += [A.T@A + 0.01*np.eye(2)]
 
-    thetas_prior += [np.array([random.uniform(-3,9), random.uniform(2,6), random.uniform(2,6), random.uniform(2,6)])]
+    thetas_prior += [np.array([random.uniform(-3,9), random.uniform(2,6)])]
 
-    A = 3*np.random.randn(4,4)
-    Sigmas_prior += [A.T@A + 0.01*np.eye(4)]
+    A = 3*np.random.randn(2,2)
+    Sigmas_prior += [A.T@A + 0.01*np.eye(2)]
 
 DELTA = 0.3
 num_timesteps = 45
@@ -55,14 +55,14 @@ def run_method(theta_prior: np.ndarray,
     delta = copy(delta)
     
     theta_prev = theta_prior.copy()
-    dists = [] #[np.linalg.norm(theta_prev - np.array([a, b]), ord=np.inf)]
+    dists = [np.linalg.norm(theta_prev - np.array([a, b]), ord=np.inf)]
     errors_dict = {}
     errors_dict["model_errors"] = []
     errors_dict["linearization_errors"] = []
     log_dets = []
     Sigmas_obs = [Sigma for _x in range(len(xs))]
 
-    ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
+    # ax = plot_confidence_ellipse(theta_prev, Sigma_prior)
 
     for timestep in range(num_timesteps):
         print(timestep)
@@ -87,7 +87,7 @@ def run_method(theta_prior: np.ndarray,
                         for (_x, S) in zip(xs, Sigmas_obs)])
                 )
 
-                ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
+                # ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
                 
                 # Obtain model errors
                 model_errors = []
@@ -141,7 +141,7 @@ def run_method(theta_prior: np.ndarray,
                         for (_x, S) in zip(xs, Sigmas_obs)])
                 )
 
-            ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
+            # ax = plot_confidence_ellipse(theta_next, Sigma_post, ax)
 
             theta_prev = theta_next.copy()
 
@@ -158,15 +158,15 @@ def run_method(theta_prior: np.ndarray,
         xs = xs + [x_next]
         ys = ys + [true_dynamics(x_next)]
 
-        # dists += [np.linalg.norm(theta_next - np.array([a, b]), ord=np.inf)]
+        dists += [np.linalg.norm(theta_next - np.array([a, b]), ord=np.inf)]
         errors_dict["model_errors"] += [np.mean(np.linalg.norm(model_errors, axis=0))]
         errors_dict["linearization_errors"] += [np.mean(np.linalg.norm(linear_errors, axis=0))]
         log_dets += [np.linalg.slogdet(Sigmas_model_errors[0])[1]]
 
-    ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
-    ax.grid(True)
-    ax.set_xlabel(r'$\theta_1$')
-    ax.set_ylabel(r'$\theta_2$')
+    # ax.set_aspect('equal', adjustable='box')  # Keep aspect ratio equal
+    # ax.grid(True)
+    # ax.set_xlabel(r'$\theta_1$')
+    # ax.set_ylabel(r'$\theta_2$')
     # plt.show()
 
     return dists, xs, errors_dict, log_dets
@@ -229,7 +229,7 @@ for _ in methods:
     axs[0].plot(range(len(xs[:, 0])), xs[:, 0], label=_)
     axs[1].plot(range(len(xs[:, 1])), xs[:, 1], label=_)
 axs[0].set_title('Input Coordinate 1')
-axs[0].set_xlabel('timestep')
+axs[0].set_xlabel('Time')
 # axs[0].legend(loc='upper right')
 axs[1].set_title('Input Coordinate 2')
 axs[1].set_xlabel('Time')
@@ -271,6 +271,6 @@ for _ in methods:
 
 plt.xlabel("Time")
 plt.ylabel("Log Determinant")
-plt.legend(loc='lower right')
+plt.legend(loc='upper right')
 plt.tight_layout()
 plt.show()
